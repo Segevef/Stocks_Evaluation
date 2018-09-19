@@ -1,11 +1,14 @@
 from bs4 import BeautifulSoup as bs
 import pandas as pd
 import requests
-import os
-import sys
+import matplotlib.pyplot as plt
 
 
 def get_yahoo_financial(ticker):
+    '''
+    input: ticker name(string)
+    output: yahoo financial table for ticker
+    '''
     financial_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '/financials?p=' + str(ticker)
     financal_source_code = requests.get(financial_url)
     plain_financial_text = financal_source_code.text
@@ -15,46 +18,159 @@ def get_yahoo_financial(ticker):
     df.set_index(0, inplace=True)
     df.columns = ['2017', '2016', '2015', '2014']
     # df.to_csv('ticker_df.csv')
-    print(df)
     return df
 
 
 def get_yahoo_description(ticker):
+    '''
+    input: ticker name(string)
+    output: yahoo description for ticker
+    '''
     desc_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '/profile?p=' + str(ticker)
     desc_source_code = requests.get(desc_url)
     plain_dec_text = desc_source_code.text
     soup = bs(plain_dec_text)
     p = soup.findAll('p', {'class': 'Mt(15px) Lh(1.6)'})
-    p = p[0]
-    print(p)
+    p = str(p[0])
+    p = p.split('<p class="Mt(15px) Lh(1.6)" data-reactid="140">')[1].split('</p>')[0]
+    return p
+
+
+def get_yahoo_analysis(ticker):
+    '''
+    input: ticker name(string)
+    output: yahoo analysis table for ticker
+    '''
+    analysis_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '/analysis?p=' + str(ticker)
+    analysis_source_code = requests.get(analysis_url)
+    plain_analysis_text = analysis_source_code.text
+    soup = bs(plain_analysis_text)
+    analysis_df = soup.findAll('section', {'class': 'smartphone_Px(20px) smartphone_Mt(10px)'})
+    analysis_df = pd.read_html(str(analysis_df))
+    return analysis_df
+
+
+def get_yahoo_holders(ticker):
+    '''
+    input: ticker name(string)
+    output: yahoo holders table for ticker
+    '''
+    holders_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '/holders?p=' + str(ticker)
+    holders_source_code = requests.get(holders_url)
+    plain_holders_text = holders_source_code.text
+    soup = bs(plain_holders_text)
+    table = soup.find('table', {'class': 'W(100%) M(0) BdB Bdc($c-fuji-grey-c)'})
+    holders_df = pd.read_html(str(table))
+    return holders_df[0]
 
 
 def yahoo_spider(ticker):
+    '''
+    input: ticker name(string)
+    output: all yahoo relevant data for ticker
+    '''
+    data = dict()
     ticker_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '?p=' + str(ticker)
-    financial_df = get_yahoo_financial(ticker)
+    data['financial_df'] = get_yahoo_financial(ticker)
+    data['description'] = get_yahoo_description(ticker)
+    data['analysis'] = get_yahoo_analysis(ticker)
+    data['holders'] = get_yahoo_holders(ticker)
+    return data
 
 
-
-def finviz_spider(ticker):
+def get_finviz_table(ticker):
+    '''
+    input: ticker name(string)
+    output: finviz financial table for ticker
+    '''
     url = 'https://finviz.com/quote.ashx?t=' + str(ticker)
     source_code = requests.get(url)
     plain_text = source_code.text
     soup = bs(plain_text)
-    graph_url = 'https://finviz.com/chart.ashx?t=' + str(ticker) + '&ty=c&ta=1&p=d&s=l'
-    graph_data = requests.get(graph_url).content
-    path = 'C:/Users/nimro/webscrape/crawler'
-    file_name = str(ticker) + '_df.csv'
-
-    if file_name in os.listdir(path):
-        with os.open(file_name, 'w') as file:
-            os.write(file, graph_data)
-
-    else:
-        x = str(ticker) + '_df.csv'
-        with os.open(x, 'a') as file:
-            os.write(file, graph_data)
-
-    print(graph_data)
+    table = soup.find('table', {'class': 'snapshot-table2'})
+    finviz_df = pd.read_html(str(table))
+    return finviz_df
 
 
-get_yahoo_description('TEVA')
+def get_finviz_estimates(ticker):
+    '''
+    input: ticker name(string)
+    output: finviz estimates report for ticker. past results of the company
+    '''
+    url = 'https://www.reuters.com/finance/stocks/analyst/' + str(ticker)
+    source_code = requests.get(url)
+    plain_text = source_code.text
+    soup = bs(plain_text)
+    div = soup.find('div', {'class': 'column1 gridPanel grid8'})
+    estimates = pd.read_html(str(div))
+
+    for table in estimates:
+        columns = table.iloc[0]
+        table.drop([0], inplace=True)
+        table.set_index(0, inplace=True)
+        name = columns[0]
+        table.columns = columns[1:]
+        table.dropna(how='all', inplace=True)
+
+    return estimates
+
+
+def get_estimates_graph(estimates):
+    estimates = estimates[3].iloc[:5]
+    estimate = estimates['Estimate']
+    actual = estimates['Actual']
+    plt.plot(actual.index, actual.values)
+    plt.plot(estimate.index, estimate.values)
+    plt.show()
+
+
+def get_finviz_statements(ticker):
+    return
+
+
+def get_industry_url(ticker):
+    url = 'https://finviz.com/quote.ashx?t=' + str(ticker)
+    source_code = requests.get(url)
+    plain_text = source_code.text
+    soup = bs(plain_text)
+    industry = soup.findAll('td', {'class': 'fullview-links'})[1]
+    soup = bs(str(industry))
+    industry = str(soup.findAll('a')[1])
+    industry = industry.split('&amp;f=')[1].split('">')[0]
+
+    industry = 'https://finviz.com/screener.ashx?v=111&f=' + industry
+
+    return str(industry)
+
+
+def get_competition_list(ticker):
+    url = get_industry_url(ticker)
+    source = requests.get(url).text
+    soup = bs(source)
+    competition_list = soup.findAll('div', {'id': 'screener-content'})
+    # soup = bs(str(competition_list))
+    competition_list = pd.read_html(str(competition_list))
+    competition_df = competition_list[3]
+    columns = competition_df.iloc[0].tolist()
+    competition_df.drop([0], inplace=True)
+    competition_df.set_index(0, inplace=True)
+    competition_df.columns = columns[1:]
+
+    return competition_df['Ticker']
+
+
+def finviz_spider(ticker):
+    data = dict()
+    data['df'] = get_finviz_table(ticker)
+    data['estimates'] = get_finviz_estimates(ticker)
+    return data
+
+
+def analyze_ticker(ticker):
+    stock = dict()
+    stock['description'] = get_yahoo_description(ticker)
+    stock['financial'] = get_yahoo_financial(ticker)
+    stock['analysis'] = get_yahoo_analysis(ticker)
+    stock['holders'] = get_yahoo_holders(ticker)
+    stock['estimates'] = get_finviz_estimates(ticker)
+    return stock
