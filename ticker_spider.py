@@ -2,6 +2,8 @@ from bs4 import BeautifulSoup as bs
 import pandas as pd
 import requests
 import matplotlib.pyplot as plt
+from io import BytesIO
+from PIL import Image
 
 
 def get_yahoo_financial(ticker):
@@ -78,6 +80,17 @@ def yahoo_spider(ticker):
     return data
 
 
+def seprate_finviz_table(df):
+    d = []
+    for i in range(2, len(df.columns), 2):
+        j = i - 2
+        x = list(zip(df[j], df[i-1]))
+        d.extend(x)
+
+    d = dict(d)
+    print(d)
+    return d
+
 def get_finviz_table(ticker):
     '''
     input: ticker name(string)
@@ -89,7 +102,9 @@ def get_finviz_table(ticker):
     soup = bs(plain_text)
     table = soup.find('table', {'class': 'snapshot-table2'})
     finviz_df = pd.read_html(str(table))
-    return finviz_df
+    finviz_df = finviz_df[0]
+
+    return seprate_finviz_table(finviz_df)
 
 
 def get_finviz_estimates(ticker):
@@ -110,18 +125,30 @@ def get_finviz_estimates(ticker):
         table.set_index(0, inplace=True)
         name = columns[0]
         table.columns = columns[1:]
-        table.dropna(how='all', inplace=True)
+        # table.dropna(how='all', inplace=True)
 
     return estimates
 
 
+def reverse_list(l):
+    return list(reversed(l))
+
+
 def get_estimates_graph(estimates):
-    estimates = estimates[3].iloc[:5]
-    estimate = estimates['Estimate']
-    actual = estimates['Actual']
-    plt.plot(actual.index, actual.values)
-    plt.plot(estimate.index, estimate.values)
+    sales = estimates[3][1:6]
+    sales_actual = sales['Actual']
+    sales_estimate = sales['Estimate']
+    earning = estimates[3][6:]
+    x = sales.index.tolist()
+    for i in range(0, len(x)):
+        date = x[i].split('\xa0')[1]
+        x[i] = date
+    x = reverse_list(x)
+
+    plt.plot(x, sales_actual, )
+    plt.plot(x, sales_estimate, color='r', )
     plt.show()
+
 
 
 def get_finviz_statements(ticker):
@@ -166,6 +193,14 @@ def finviz_spider(ticker):
     return data
 
 
+def get_finviz_graph(ticker):
+    url = 'https://finviz.com/chart.ashx?t=' + str(ticker) + '&ty=c&ta=1&p=d&s=l'
+    response = requests.get(url)
+    img = Image.open(BytesIO(response.content))
+    print(img)
+    return img
+
+
 def analyze_ticker(ticker):
     stock = dict()
     stock['description'] = get_yahoo_description(ticker)
@@ -174,3 +209,6 @@ def analyze_ticker(ticker):
     stock['holders'] = get_yahoo_holders(ticker)
     stock['estimates'] = get_finviz_estimates(ticker)
     return stock
+
+
+
