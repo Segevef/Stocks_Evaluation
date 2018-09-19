@@ -4,6 +4,7 @@ import requests
 import matplotlib.pyplot as plt
 from io import BytesIO
 from PIL import Image
+import os
 import xlsxwriter
 import time
 
@@ -51,7 +52,8 @@ def get_yahoo_analysis(ticker):
     soup = bs(plain_analysis_text, "html.parser")
     analysis_df = soup.findAll('section', {'class': 'smartphone_Px(20px) smartphone_Mt(10px)'})
     analysis_df = pd.read_html(str(analysis_df))
-    return analysis_df
+    df = pd.concat(analysis_df)
+    return df
 
 
 def get_yahoo_holders(ticker):
@@ -230,14 +232,24 @@ def export_to_xls(stock, industry, ticker):
 
     industry[ticker] = stock['finviz_table']
     current_date = time.strftime("%d/%m/%Y")
-    writer = pd.ExcelWriter(ticker + '_' + 'evaluation' + '_' + current_date + '.xlsx', engine='xlsxwriter')
-    for key in stock.keys():
-        stock[key].to_excel(writer, sheet_name=key)
+    file_name = ticker + '_' + 'evaluation' + '_' + current_date + '.xlsx'
+    writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
+    workbook = writer.book
 
-    df = pd.DataFrame.from_dict(industry)
-    print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx')
-    print(df)
-    df.to_excel(writer, sheet_name='industry')
+    for key in stock.keys():
+        if(type(stock[key]) == str):
+            worksheet = workbook.add_worksheet(key)
+            worksheet.write('A1', key)
+            worksheet.write('A3', stock[key])
+
+        else:
+            if(type(stock[key]) == dict):
+                pass
+                # df = pd.DataFrame.from_dict(stock[key])
+                # df.to_excel(writer, sheet_name=key)
+            else:
+                stock[key].to_excel(writer, sheet_name=key)
+
     writer.save()
 
 
