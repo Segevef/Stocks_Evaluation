@@ -4,6 +4,7 @@ import requests
 import matplotlib.pyplot as plt
 from io import BytesIO
 from PIL import Image
+import xlsxwriter
 import time
 
 
@@ -90,7 +91,6 @@ def seprate_finviz_table(df, ticker):
         x = list(zip(df[j], df[i-1]))
         d.extend(x)
 
-    print(d)
     d = dict(d)
     return d
 
@@ -122,16 +122,16 @@ def get_finviz_estimates(ticker):
     soup = bs(plain_text, "html.parser")
     div = soup.find('div', {'class': 'column1 gridPanel grid8'})
     estimates = pd.read_html(str(div))
+    df = pd.concat(estimates)
+    # for table in estimates:
+    #     columns = table.iloc[0]
+    #     table.drop([0], inplace=True)
+    #     table.set_index(0, inplace=True)
+    #     name = columns[0]
+    #     table.columns = columns[1:]
+    #     # table.dropna(how='all', inplace=True)
 
-    for table in estimates:
-        columns = table.iloc[0]
-        table.drop([0], inplace=True)
-        table.set_index(0, inplace=True)
-        name = columns[0]
-        table.columns = columns[1:]
-        # table.dropna(how='all', inplace=True)
-
-    return estimates
+    return df
 
 
 def reverse_list(l):
@@ -220,10 +220,29 @@ def evaluate_competitors(ticker):
     industry = {}
     competitors_list = get_competition_list(ticker)
     for ticker in competitors_list:
-        stock = analyze_ticker(ticker)
+        stock = get_finviz_table(ticker)
         industry[ticker] = stock
 
     return industry
 
 
-get_finviz_table('MU')
+def export_to_xls(stock, industry, ticker):
+
+    industry[ticker] = stock['finviz_table']
+    current_date = time.strftime("%d/%m/%Y")
+    writer = pd.ExcelWriter(ticker + '_' + 'evaluation' + '_' + current_date + '.xlsx', engine='xlsxwriter')
+    for key in stock.keys():
+        stock[key].to_excel(writer, sheet_name=key)
+
+    df = pd.DataFrame.from_dict(industry)
+    print('XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXx')
+    print(df)
+    df.to_excel(writer, sheet_name='industry')
+    writer.save()
+
+
+stock = analyze_ticker('MU')
+list_competitors = get_competition_list('MU')
+industry = evaluate_competitors('MU')
+export_to_xls(stock, industry, 'MU')
+
