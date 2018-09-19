@@ -15,7 +15,7 @@ def get_yahoo_financial(ticker):
     financial_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '/financials?p=' + str(ticker)
     financal_source_code = requests.get(financial_url)
     plain_financial_text = financal_source_code.text
-    soup = bs(plain_financial_text)
+    soup = bs(plain_financial_text, "html.parser")
     table = soup.findAll('table', {'class': 'Lh(1.7) W(100%) M(0)'})
     df = pd.read_html(str(table))[0]
     df.set_index(0, inplace=True)
@@ -32,7 +32,7 @@ def get_yahoo_description(ticker):
     desc_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '/profile?p=' + str(ticker)
     desc_source_code = requests.get(desc_url)
     plain_dec_text = desc_source_code.text
-    soup = bs(plain_dec_text)
+    soup = bs(plain_dec_text, "html.parser")
     p = soup.findAll('p', {'class': 'Mt(15px) Lh(1.6)'})
     p = str(p[0])
     p = p.split('>')[1].split('</p>')[0]
@@ -47,7 +47,7 @@ def get_yahoo_analysis(ticker):
     analysis_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '/analysis?p=' + str(ticker)
     analysis_source_code = requests.get(analysis_url)
     plain_analysis_text = analysis_source_code.text
-    soup = bs(plain_analysis_text)
+    soup = bs(plain_analysis_text, "html.parser")
     analysis_df = soup.findAll('section', {'class': 'smartphone_Px(20px) smartphone_Mt(10px)'})
     analysis_df = pd.read_html(str(analysis_df))
     return analysis_df
@@ -61,7 +61,7 @@ def get_yahoo_holders(ticker):
     holders_url = 'https://finance.yahoo.com/quote/' + str(ticker) + '/holders?p=' + str(ticker)
     holders_source_code = requests.get(holders_url)
     plain_holders_text = holders_source_code.text
-    soup = bs(plain_holders_text)
+    soup = bs(plain_holders_text, "html.parser")
     table = soup.find('table', {'class': 'W(100%) M(0) BdB Bdc($c-fuji-grey-c)'})
     holders_df = pd.read_html(str(table))
     return holders_df[0]
@@ -81,13 +81,16 @@ def yahoo_spider(ticker):
     return data
 
 
-def seprate_finviz_table(df):
+def seprate_finviz_table(df, ticker):
     d = []
+    tup = list(zip(['symbol'], [ticker]))
+    d.extend(tup)
     for i in range(2, len(df.columns) + 1, 2):
         j = i - 2
         x = list(zip(df[j], df[i-1]))
         d.extend(x)
 
+    print(d)
     d = dict(d)
     return d
 
@@ -100,12 +103,12 @@ def get_finviz_table(ticker):
     url = 'https://finviz.com/quote.ashx?t=' + str(ticker)
     source_code = requests.get(url)
     plain_text = source_code.text
-    soup = bs(plain_text)
+    soup = bs(plain_text, "html.parser")
     table = soup.find('table', {'class': 'snapshot-table2'})
     finviz_df = pd.read_html(str(table))
     finviz_df = finviz_df[0]
 
-    return seprate_finviz_table(finviz_df)
+    return seprate_finviz_table(finviz_df, ticker)
 
 
 def get_finviz_estimates(ticker):
@@ -116,7 +119,7 @@ def get_finviz_estimates(ticker):
     url = 'https://www.reuters.com/finance/stocks/analyst/' + str(ticker)
     source_code = requests.get(url)
     plain_text = source_code.text
-    soup = bs(plain_text)
+    soup = bs(plain_text, "html.parser")
     div = soup.find('div', {'class': 'column1 gridPanel grid8'})
     estimates = pd.read_html(str(div))
 
@@ -159,9 +162,9 @@ def get_industry_url(ticker):
     url = 'https://finviz.com/quote.ashx?t=' + str(ticker)
     source_code = requests.get(url)
     plain_text = source_code.text
-    soup = bs(plain_text)
+    soup = bs(plain_text, "html.parser")
     industry = soup.findAll('td', {'class': 'fullview-links'})[1]
-    soup = bs(str(industry))
+    soup = bs(str(industry), "html.parser")
     industry = str(soup.findAll('a')[1])
     industry = industry.split('&amp;f=')[1].split('">')[0]
 
@@ -173,7 +176,7 @@ def get_industry_url(ticker):
 def get_competition_list(ticker):
     url = get_industry_url(ticker)
     source = requests.get(url).text
-    soup = bs(source)
+    soup = bs(source, "html.parser")
     competition_list = soup.findAll('div', {'id': 'screener-content'})
     # soup = bs(str(competition_list))
     competition_list = pd.read_html(str(competition_list))
@@ -223,3 +226,4 @@ def evaluate_competitors(ticker):
     return industry
 
 
+get_finviz_table('MU')
