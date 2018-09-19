@@ -4,6 +4,7 @@ import requests
 import matplotlib.pyplot as plt
 from io import BytesIO
 from PIL import Image
+import time
 
 
 def get_yahoo_financial(ticker):
@@ -34,7 +35,7 @@ def get_yahoo_description(ticker):
     soup = bs(plain_dec_text)
     p = soup.findAll('p', {'class': 'Mt(15px) Lh(1.6)'})
     p = str(p[0])
-    p = p.split('<p class="Mt(15px) Lh(1.6)" data-reactid="140">')[1].split('</p>')[0]
+    p = p.split('>')[1].split('</p>')[0]
     return p
 
 
@@ -82,14 +83,14 @@ def yahoo_spider(ticker):
 
 def seprate_finviz_table(df):
     d = []
-    for i in range(2, len(df.columns), 2):
+    for i in range(2, len(df.columns) + 1, 2):
         j = i - 2
         x = list(zip(df[j], df[i-1]))
         d.extend(x)
 
     d = dict(d)
-    print(d)
     return d
+
 
 def get_finviz_table(ticker):
     '''
@@ -150,7 +151,6 @@ def get_estimates_graph(estimates):
     plt.show()
 
 
-
 def get_finviz_statements(ticker):
     return
 
@@ -208,7 +208,18 @@ def analyze_ticker(ticker):
     stock['analysis'] = get_yahoo_analysis(ticker)
     stock['holders'] = get_yahoo_holders(ticker)
     stock['estimates'] = get_finviz_estimates(ticker)
+    stock['finviz_table'] = get_finviz_table(ticker)
+
     return stock
 
+
+def evaluate_competitors(ticker):
+    industry = {}
+    competitors_list = get_competition_list(ticker)
+    for ticker in competitors_list:
+        stock = analyze_ticker(ticker)
+        industry[ticker] = stock
+
+    return industry
 
 
