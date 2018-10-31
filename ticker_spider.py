@@ -103,14 +103,17 @@ def get_finviz_table(ticker):
     output: finviz financial table for ticker
     '''
     url = 'https://finviz.com/quote.ashx?t=' + str(ticker)
-    source_code = requests.get(url)
+    s = requests.Session()
+    s.proxies = {"http": "http://61.233.25.166:80"}
+    source_code = s.get(url)
+    # source_code = requests.get(url)
     plain_text = source_code.text
     soup = bs(plain_text, "html.parser")
     table = soup.find('table', {'class': 'snapshot-table2'})
     finviz_df = pd.read_html(str(table))
     finviz_df = finviz_df[0]
 
-    return seprate_finviz_table(finviz_df, ticker)
+    return finviz_df
 
 
 def get_finviz_estimates(ticker):
@@ -124,7 +127,7 @@ def get_finviz_estimates(ticker):
     soup = bs(plain_text, "html.parser")
     div = soup.find('div', {'class': 'column1 gridPanel grid8'})
     estimates = pd.read_html(str(div))
-    df = pd.concat(estimates)
+    # df = pd.concat(estimates)
     # for table in estimates:
     #     columns = table.iloc[0]
     #     table.drop([0], inplace=True)
@@ -133,7 +136,7 @@ def get_finviz_estimates(ticker):
     #     table.columns = columns[1:]
     #     # table.dropna(how='all', inplace=True)
 
-    return df
+    return estimates
 
 
 def reverse_list(l):
@@ -141,18 +144,21 @@ def reverse_list(l):
 
 
 def get_estimates_graph(estimates):
+    headers = estimates[3].iloc[0]
+    estimates[3].columns = headers
     sales = estimates[3][1:6]
     sales_actual = sales['Actual']
     sales_estimate = sales['Estimate']
     earning = estimates[3][6:]
     x = sales.index.tolist()
+    print(x)
     for i in range(0, len(x)):
-        date = x[i].split('\xa0')[1]
+        date = x[i]#.split('\xa0')[1]
         x[i] = date
     x = reverse_list(x)
 
-    plt.plot(x, sales_actual, )
-    plt.plot(x, sales_estimate, color='r', )
+    plt.plot(x, sales_actual, 'o')
+    plt.plot(x, sales_estimate, 'o', color='r')
     plt.show()
 
 
@@ -212,8 +218,10 @@ def analyze_ticker(ticker):
     stock['financial'] = get_yahoo_financial(ticker)
     stock['analysis'] = get_yahoo_analysis(ticker)
     stock['holders'] = get_yahoo_holders(ticker)
-    stock['estimates'] = get_finviz_estimates(ticker)
-    stock['finviz_table'] = get_finviz_table(ticker)
+    estimates = get_finviz_estimates(ticker)
+    stock['estimates'] = pd.concat(estimates)
+    finviz_df = get_finviz_table(ticker)
+    stock['finviz_table'] = seprate_finviz_table(finviz_df, ticker)
 
     return stock
 
@@ -221,40 +229,47 @@ def analyze_ticker(ticker):
 def evaluate_competitors(ticker):
     industry = {}
     competitors_list = get_competition_list(ticker)
+    finviz_keys = ['Index', 'Market Cap', 'Income', 'Sales', 'Book/sh', 'Cash/sh', 'Dividend', 'Dividend %',
+                   'Employees', 'Optionable', 'Shortable', 'Recom', 'P/E', 'Forward P/E', 'PEG', 'P/S', 'P/B', 'P/C',
+                   'P/FCF', 'Quick Ratio', 'Current Ratio', 'Debt/Eq', 'LT Debt/Eq', 'SMA20', 'EPS (ttm)', 'EPS next Y',
+                   'EPS next Q', 'EPS this Y', 'EPS next Y', 'EPS next 5Y', 'EPS past 5Y', 'Sales past 5Y', 'Sales Q/Q',
+                   'EPS Q/Q', 'Earnings', 'SMA50', 'Insider Own', 'Insider Trans', 'Inst Own', 'Inst Trans', 'ROA',
+                   'ROE', 'ROI', 'Gross Margin', 'Oper. Margin', 'Profit Margin', 'Payout', 'SMA200', 'Shs Outstand',
+                   'Shs Float', 'Short Float', 'Short Ratio', 'Target Price', '52W Range', '52W High', '52W Low',
+                   'RSI (14)', 'Rel Volume', 'Avg Volume', 'Volume', 'Perf Week', 'Perf Month', 'Perf Quarter',
+                   'Perf Half Y', 'Perf Year', 'Perf YTD', 'Beta', 'ATR', 'Volatility', 'Prev Close', 'Price', 'Change']
+    df = pd.DataFrame(index=competitors_list, columns=finviz_keys)
     for ticker in competitors_list:
         stock = get_finviz_table(ticker)
+        stock = seprate_finviz_table(stock, ticker)
+        for key in stock.keys():
+            value = stock[key]
+            df.loc[ticker, key] = value
         industry[ticker] = stock
 
-    return industry
+    return df
 
 
-def export_to_xls(stock, industry, ticker):
-
-    industry[ticker] = stock['finviz_table']
-    current_date = time.strftime("%d/%m/%Y")
+def export_to_xls(industry, ticker):
+    path = 'C:/Users/nimro/webscrape/crawler/venv'
+    current_date = time.strftime("%d-%m-%Y")
     file_name = ticker + '_' + 'evaluation' + '_' + current_date + '.xlsx'
+    full_path = os.path.join(path, file_name)
     writer = pd.ExcelWriter(file_name, engine='xlsxwriter')
-    workbook = writer.book
-
-    for key in stock.keys():
-        if(type(stock[key]) == str):
-            worksheet = workbook.add_worksheet(key)
-            worksheet.write('A1', key)
-            worksheet.write('A3', stock[key])
-
-        else:
-            if(type(stock[key]) == dict):
-                pass
-                # df = pd.DataFrame.from_dict(stock[key])
-                # df.to_excel(writer, sheet_name=key)
-            else:
-                stock[key].to_excel(writer, sheet_name=key)
-
+    industry.drop(['Index'], inplace=True, axis=1)
+    industry.to_excel(writer, sheet_name='data')
     writer.save()
 
 
-stock = analyze_ticker('MU')
-list_competitors = get_competition_list('MU')
-industry = evaluate_competitors('MU')
-export_to_xls(stock, industry, 'MU')
 
+
+
+# ticker = 'AMX'
+# analyze_ticker(ticker)
+# industry = evaluate_competitors(ticker)
+# stock = get_finviz_table(ticker)
+# export_to_xls(industry, ticker)
+
+
+x = get_finviz_estimates('AMX')
+get_estimates_graph(x)
